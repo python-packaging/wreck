@@ -7,25 +7,27 @@
 import re
 import sys
 from pathlib import Path
-from typing import Iterator, Tuple
+from typing import Generator, Tuple
 
 from packaging.utils import canonicalize_name
 
 DISTINFO_RE = re.compile(r"([^-]+)-(.*?)\.dist-info$")
 
 
-def iter_all_distinfo_dirs() -> Iterator[Tuple[str, str, Path]]:
+def iter_all_distinfo_dirs() -> Generator[Tuple[str, str, Path], None, None]:
     for p in sys.path:
         path = Path(p)
         if path.is_dir():
             yield from iter_distinfo_dirs(path)
 
 
-def iter_distinfo_dirs(path: Path) -> Iterator[Tuple[str, str, Path]]:
+def iter_distinfo_dirs(path: Path) -> Generator[Tuple[str, str, Path], None, None]:
     for subdir in path.iterdir():
         if subdir.name.endswith(".dist-info") and subdir.is_dir():
-            # TODO error handling
-            (project, version) = DISTINFO_RE.match(subdir.name).groups()
+            m = DISTINFO_RE.match(subdir.name)
+            if not m:  # pragma: no cover
+                continue
+            (project, version) = m.groups()
 
             # Change from underscores to dashes
             project = canonicalize_name(project)
@@ -33,6 +35,6 @@ def iter_distinfo_dirs(path: Path) -> Iterator[Tuple[str, str, Path]]:
             yield project, version, subdir
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     for x in iter_all_distinfo_dirs():
         print(x)

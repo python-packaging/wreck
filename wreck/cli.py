@@ -1,13 +1,9 @@
-import ast
-import glob
-import sys
 from pathlib import Path
-from typing import Optional, Set
+from typing import Dict, Optional, Set
 
 import click
 
 import trailrunner
-from packaging.utils import canonicalize_name
 from stdlibs import stdlib_module_names
 
 from .distinfo import iter_all_distinfo_dirs, iter_distinfo_dirs
@@ -15,7 +11,7 @@ from .distinfo import iter_all_distinfo_dirs, iter_distinfo_dirs
 from .distinfo_inference import analyze, iterparents
 
 from .import_parser import get_imports
-from .requirements import iter_simple_requirements
+from .requirements import iter_glob_all_requirement_names
 
 STDLIB_MODULE_NAMES = stdlib_module_names()  # for the running version only
 
@@ -41,18 +37,11 @@ def main(
     allow_names: Optional[str],
     verbose: bool,
 ) -> None:
-    available_names: Dict[str, str] = {}
+    available_names: Dict[str, Optional[str]] = {}
     requirement_names: Set[Optional[str]] = {None}
 
     # Part 1
-    # TODO these should be split out of main() to be more reusable
-    for pattern in requirements.split(","):
-        # We can't just use Path.glob because you mgiht pass 'reqs/*.txt' and
-        # this is considered a non-relative pattern.
-        if pattern:
-            for filename in glob.glob(pattern):
-                for req in iter_simple_requirements(Path(filename)):
-                    requirement_names.add(canonicalize_name(req.name))
+    requirement_names = set(iter_glob_all_requirement_names(requirements))
 
     # Part 2
     if not installed_path:

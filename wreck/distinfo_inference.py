@@ -1,9 +1,7 @@
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Set
-
-from packaging.utils import canonicalize_name
+from typing import Generator, Set
 
 
 @dataclass
@@ -13,15 +11,15 @@ class Dist:
 
     @property
     def minimal_names(self) -> Set[str]:
+        # This heuristic is based on looking at real-world examples, in
+        # particular the google-api-* and google-cloud-* projects.
         done: Set[str] = set()
         for p in sorted(self.provided_names):
             for x in reversed(list(iterparents(p))):
                 if x not in self.namespace_names and not any(
                     n.startswith(f"{x}.") for n in self.namespace_names
                 ):
-                    if x not in done:
-                        done.add(x)
-                        yield x
+                    done.add(x)
                     break
             else:
                 if (
@@ -30,10 +28,10 @@ class Dist:
                     and p not in done
                 ):
                     done.add(p)
-                    yield p
+        return done
 
 
-def iterparents(f: str):
+def iterparents(f: str) -> Generator[str, None, None]:
     while "." in f:
         f = f.rsplit(".", 1)[0]
         yield f
@@ -42,8 +40,6 @@ def iterparents(f: str):
 def analyze(distinfo_dir: Path) -> Dist:
     packages: Set[str] = set()
     namespace_packages: Set[str] = set()
-
-    filenames: List[str] = []
 
     # This is in two phases because otherwise we'd need to set __init__.py
     # before all other .py entries under a dir
@@ -82,12 +78,12 @@ def analyze(distinfo_dir: Path) -> Dist:
             if line:
                 namespace_packages.add(line)
 
-    return Dist(packages, namespace_packages)
+    return Dist(packages - namespace_packages, namespace_packages)
 
 
-def main(dirname):
+def main(dirname: str) -> None:  # pragma: no cover
     dist = analyze(Path(dirname))
-    print(f"provided names=")
+    print("provided names=")
     for p in sorted(dist.provided_names):
         print(f"  {p}")
     print("namespace_names=")
@@ -98,5 +94,5 @@ def main(dirname):
         print(f"  {p}")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main(sys.argv[1])

@@ -27,6 +27,7 @@ format:
 lint:
 	python -m ufmt check $(SOURCES)
 	python -m flake8 $(SOURCES)
+	python -m wreck wreck
 	mypy --strict wreck
 
 .PHONY: release
