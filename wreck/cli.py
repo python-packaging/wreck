@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from typing import Dict, Optional, Set
 
@@ -29,6 +30,9 @@ STDLIB_MODULE_NAMES = stdlib_module_names()  # for the running version only
     "--allow-names",
     help="Minimal names to consider satisfied, such as the current project top-level name (comma-separated)",
 )
+@click.option(
+    "--missing-projects-only", is_flag=True, help="Show names of missing projects only"
+)
 @click.argument("target_dir")
 def main(
     requirements: str,
@@ -36,6 +40,7 @@ def main(
     installed_path: str,
     allow_names: Optional[str],
     verbose: bool,
+    missing_projects_only: bool,
 ) -> None:
     available_names: Dict[str, Optional[str]] = {}
     requirement_names: Set[Optional[str]] = {None}
@@ -61,6 +66,7 @@ def main(
             available_names[name] = None
 
     # Part 3
+    missing_projects = set()
     for path in trailrunner.walk(Path(target_dir)):
         if verbose:
             print(f"{path}:")
@@ -73,23 +79,29 @@ def main(
                 for name in (i,) + tuple(iterparents(i)):
                     if name in available_names:
                         providers.append(available_names[name])
-                if not all(p in requirement_names for p in providers):
-                    if len(providers) == 1:
-                        click.echo(
-                            f"{path.as_posix()} uses "
-                            + click.style(i, bold=True)
-                            + " but "
-                            + click.style(repr(providers[0]), bold=True)
-                            + " not in requirements"
-                        )
-                    else:
-                        click.echo(
-                            f"{path.as_posix()} uses "
-                            + click.style(i, bold=True)
-                            + " but "
-                            + click.style(repr(providers), bold=True)
-                            + " not all in requirements"
-                        )
+
+                if None in providers:  # first-party probably
+                    continue
+
+                if not any(p in requirement_names for p in providers):
+                    missing_projects.update(providers)
+                    if not missing_projects_only:
+                        if len(providers) == 1:
+                            click.echo(
+                                f"{path.as_posix()} uses "
+                                + click.style(i, bold=True)
+                                + " but "
+                                + click.style(repr(providers[0]), bold=True)
+                                + " not in requirements"
+                            )
+                        else:
+                            click.echo(
+                                f"{path.as_posix()} uses "
+                                + click.style(i, bold=True)
+                                + " but "
+                                + click.style(repr(providers), bold=True)
+                                + " not all in requirements"
+                            )
                 if verbose:
                     print(f"  {i} available from {providers}")
             elif i.split(".")[0] in STDLIB_MODULE_NAMES:
@@ -101,6 +113,10 @@ def main(
                     + click.style(i, bold=True)
                     + " but there is nothing installed to provide it"
                 )
+    if missing_projects_only:
+        print(sorted(missing_projects))
+    if missing_projects:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
